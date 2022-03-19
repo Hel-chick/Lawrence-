@@ -1,0 +1,105 @@
+---
+title: "Lab 4 data"
+author: "Helen Threlkeld"
+date: "3/1/2022"
+output: html_document
+---
+Packages
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(data.table)
+```
+
+Data 
+```{r}
+Osmolality <- c(55, 17, 50, 75, 46, 43, 62, 29, 84, 56, 118, 49, 64, 65, 55, 50, 541, 497, 421, 535, 374, 453, 888, 477,473, 556, 576, 530, 273, 403, 483, 490, 184, 56, 124, 42, 69, 13, 101, 75, 235, 256, 199, 226, 202, 114, 178, 192)
+Animal <- c("Clam", "Clam", "Clam", "Clam", "Clam", "Clam", "Clam", "Clam", "Clam", "Clam", "Clam", "Clam", "Clam", "Clam", "Clam", "Clam", "Crayfish", "Crayfish", "Crayfish", "Crayfish", "Crayfish", "Crayfish", "Crayfish", "Crayfish", "Crayfish", "Crayfish", "Crayfish", "Crayfish", "Crayfish", "Crayfish", "Crayfish", "Crayfish", "Snail", "Snail", "Snail", "Snail", "Snail", "Snail", "Snail", "Snail", "Snail", "Snail", "Snail", "Snail", "Snail", "Snail", "Snail", "Snail")
+Time <- c("Before", "Before", "Before", "Before", "Before", "Before", "Before", "Before", "After", "After", "After", "After", "After", "After", "After", "After","Before", "Before", "Before", "Before", "Before", "Before", "Before", "Before","After", "After", "After", "After", "After", "After", "After", "After","Before", "Before", "Before", "Before", "Before", "Before", "Before", "Before","After", "After", "After", "After", "After", "After", "After", "After" )
+
+data <- data.frame(Time, Animal, Osmolality)
+
+```
+
+Averages 
+```{r}
+
+#before averages 
+before = filter(data, Time == "Before")
+setDT(before)
+before.a <- before[ ,list(mean=mean(Osmolality)), by=Animal]
+
+#after averages 
+after = filter(data, Time =="After")
+setDT(after)
+after.a <- after[ ,list(mean=mean(Osmolality)), by=Animal]
+
+avg <- c(after.a$mean, before.a$mean)
+avg.df <- data.frame(avg)
+ani<- c("Clam", "Crayfish", "Snail", "Clam", "Crayfish", "Snail")
+time <- c("After", "After", "After", "Before", "Before", "Before")
+avg.df <- cbind (avg.df, ani, time)
+
+```
+Graphing 
+```{r}
+#  summary table
+
+before.summary = before %>% group_by(Animal) %>%
+  summarize(mean.osm = mean(Osmolality),
+            sd.osm = sd(Osmolality))
+after.summary = after %>% group_by(Animal) %>% 
+  summarize(mean.osm = mean(Osmolality), 
+           sd.osm = sd(Osmolality))
+combo.summary = rbind(before.summary, after.summary)
+time.t = c("Before", "Before", "Before", "After", "After", "After")
+
+total.summary = cbind(time.t, combo.summary)
+
+#Point and error plot
+ggplot(total.summary, aes(time.t, mean.osm, color = Animal, shape = Animal)) + geom_point(size = 3) + geom_errorbar(aes(ymin = mean.osm - sd.osm, ymax= mean.osm+sd.osm), width = 0.1) +geom_line(aes(group = Animal )) + xlab("Time") + ylab("Average Osmolality (mmol/kg)") + scale_x_discrete(name = "Time", limits = c("Before", "After"))
+```
+T-tests 
+```{r}
+#clams 
+clam = filter(data, Animal == "Clam")
+#calculate differences 
+c.b = filter(clam, Time == "Before")
+c.a = filter(clam, Time == "After")
+c.diff = (c.b$Osmolality - c.a$Osmolality)
+#test for normality
+shapiro.test(c.diff)
+#data is normal (W = 0.96263, p-value = 0.8347)
+#Paired t-test
+t.test(Osmolality ~ Time, data = clam, paired = TRUE)
+#no significant change (t = 2.0504, df = 7, p-value = 0.07949)
+
+#crayfish 
+crayfish = filter(data, Animal == "Crayfish")
+#calculate differences 
+cr.b = filter(crayfish, Time == "Before")
+cr.a = filter(crayfish, Time == "After")
+cr.diff = (cr.b$Osmolality - cr.a$Osmolality)
+#test for normality
+shapiro.test(cr.diff)
+#data is normal (W = 0.87357, p-value = 0.1633)
+#Paired t-test
+t.test(Osmolality ~ Time, data = crayfish, paired = TRUE)
+#no significant change (t = -0.86531, df = 7, p-value = 0.4155)
+
+#snail 
+snail = filter(data, Animal == "Snail")
+#calculate differences 
+s.b = filter(snail, Time == "Before")
+s.a = filter(snail, Time == "After")
+s.diff = (s.b$Osmolality - s.a$Osmolality)
+#test for normality
+shapiro.test(s.diff)
+#data is normal (W = 0.9341, p-value = 0.5541)
+#Paired t-test
+t.test(Osmolality ~ Time, data = snail, paired = TRUE)
+#***significant change (t = 6.2658, df = 7, p-value = 0.0004177)
+```
+
+
+

@@ -1,0 +1,872 @@
+---
+title: "R Cookbook"
+author: "Helen Threlkeld"
+date: "06/05/2020"
+output:
+  html_document:
+    toc: yes
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+```{r, warning=FALSE, Message=FALSE, echo=FALSE}
+chooseCRANmirror(graphics=FALSE, ind=1)
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Users/Helen/OneDrive - Lawrence University/Bio 170")
+
+```
+# Starting to Code 
+## Loading Data from Excel 
+``` {r}
+
+#1. Set working directory
+#Go to Session tab and choose "Set Working Directory" and select the folder the wanted .csv files are in 
+#2. Load the datasets 
+Malaria = read.csv("MalariaandMosquitoFeeding.csv", header = T)
+#Title your data = read.csv("Exact title of file.csv", header = T or F)
+```
+## Some basic packages 
+```{r}
+#Packages are added programming that have specific functions. ggplot2, for example, is used for the creation of graphics like graphs and charts. The code for installing a package is: 
+#__install.packages(tidyverse)__
+# A package can also be installed by going to the Tools tab and selecting "Install Packages..." 
+#Once you install a package in RStudio you do not have install it everytime you use R, but you do have to load it from the Library every time you start a new file.  
+
+library(tidyverse)
+#tidyverse package includes a group of packages: ggplot2 = graphics, dplyr = data manipulation, and others. If you know you will only need a single package from tidyverse, the packages can be loaded individually. 
+
+library(pwr)
+#pwr package allows for power statistical tests 
+
+library(datasets)
+#datasets package has many examples sets of data
+
+library(e1071)
+#e1071 package allows for skewness and kurtosis tests.
+
+library(car)
+#car package allows for statistical tests like Levene's test
+
+library(dplyr)
+```
+# Working with the data 
+## Generating Data 
+```{r}
+#To load data from anywhere and especialy a library: 
+data(sleep)
+#data(title of data)
+```
+### Generating Random Data 
+```{r}
+#To generate a random data set to compare data against: 
+#1. Call for random number generator 
+set.seed(198)
+#2. Create and title new object 
+extra = rnorm(20,0,1) 
+#Variable name = rnorm(observations, mean, stnd.dev)
+#rnorm is the function that generates a set of random numbers. 
+#extra, the new object, will show up in the Global Environment 
+```
+## Types of data organization
+### Data Frame
+``` {r}
+#Example of creating a data frame from the "extra" object: 
+extra = as.data.frame(extra)
+#as.data.frame() is good at coercing data into a data frame and checking to see if data are a data frame. 
+```
+### Merging Data into New Tables 
+``` {r}
+norm.table = cbind(extra, group = "RANDOM", ID = "RANDOM")
+#title of table = cbind(table1, new column title = new column data, new column title = new column data)
+new.df = rbind(norm.table, sleep)
+#title of data frame = rbind(table1, table2)
+#rbind() merges rows 
+#cbind() merges columns 
+```
+### Contingency Table 
+```{r}
+#A contingency table helps re-organize the data to better see the overall summarry of the data or isolating certain variables. It is helpful to use contingency tables when doing stats analysis like Chi-squared. 
+table1 = table(Malaria$infectionStatus, Malaria$multipleBloodMeals)
+table1
+#name of table = table(name of table$x-variable, name of table$y-variable)
+#Reference: http://www.r-tutor.com/r-introduction/data-frame; https://www.datasciencecentral.com/profiles/blogs/contingency-tables-in-r
+```
+### Proportional table
+```{r}
+#A proportional table is a table of the proportions between variables' observations. This type of table is used when doing a test of power. 
+prop.table(table1)
+```
+
+# Examining the data 
+```{r}
+#There are helpful tools to examine the important parts of the data without loading the whole table. 
+
+head(Malaria)
+#head() will load the first 6 rows of a table 
+
+tail(Malaria)
+#tail() will load the last 6 rows of a table
+
+str(Malaria) 
+#str() will tell you the organization (data frame or other), the number of observations, the number of variables, the type of variable (Factor, Num, etc.), how many levels the variable has. 
+
+#Summary() shows important descriptive stats about the data. 
+data("InsectSprays")
+summary(InsectSprays)
+#summary() = min for each variable 
+#           1st Quartile for each
+#           Median 
+#           Mean
+#           3rd Quartile
+#           Max 
+
+#There are some functions, like filter(), that allow you to create data sets with only the desired variables. For example if I wanted to see only the data for the mosquitos that were infected with Malaria. 
+Infected = filter(Malaria, infectionStatus == "infected")
+Infected
+summary(Infected)
+#Filter arguments: Name of isolated data = filter(the data set, variable == "factor level")
+```
+# Testing the Data: Statistical Tests 
+### Shapiro-Wilkes Test and QQ plot 
+``` {r}
+leptod = read.csv("Leptodora_predation.csv", header = T)
+
+#Shapiro-wilkes test is a test of normality. Null hypothesis = data are normal. Necessary package: dplyr
+shapiro.test(extra$extra)
+#shapiro.test(numerical data vector)
+#In this case the numerical data vector is: extra$extra or dataname$variable name 
+#W = 0.98996 p-value = 0.8345. This means that extra is normal distributed and the null hypothesis fails to be rejected. 
+
+#A QQ plot is a way of visualizing nomrality. If all of the dots line up in a straight or nearly straight line, that means your data is or close to normal.  
+## QQplot Leptodora data
+ggplot(leptod, aes(sample = PredRate)) + geom_qq() + annotate("text", label = "W = 0.77", x = -1, y = 30)
+ggplot(leptod, aes(sample = logRate)) + geom_qq() + annotate("text", label = "W = 0.97", x = 1.5, y = 1)
+shapiro.test(leptod$PredRate)
+shapiro.test(leptod$logRate)
+```
+### Kurtosis and Skewness 
+``` {r}
+#Kurtosis tests how peaked the data set is and skewness tests how skewed the data set is.__Package e1071 must be loaded for kurtosis and skewness__. 
+kurtosis(extra$extra, type = 2)
+skewness(extra$extra, type = 2)
+#kurtosis arguments = kurtosis(data$dataset, type of kurtosis test)-- use test 2 
+#skewness arguments = skewness(data$dataset, type of skewness test)-- use test 2
+#kurtosis values = (+) = leptokurtic(peaked); (-) = platykurticm (flat); (0) = mesokurtic (normal)
+```
+### Chi-squared Test 
+``` {r}
+#Chi-squared test is a test of independence to see if two variables are independent from eachother. THIS IS A GOOD TEST IF BOTH VARIABLES ARE CATEGORICAL. 
+#Example with the Malaria data 
+#1. Determine null and alternative hypothesis. 
+#Ho: Whether a mosquito will have multiple blood meals or a single blood meal will not depend on whether the mosquito is infected. 
+#Ha: There will be a difference in the frequency of the mosquitos' feedings, depending on whether the mosquito is infected or not. 
+
+#2. Convert data into a table of numerical values.
+table1 = table(Malaria$infectionStatus, Malaria$multipleBloodMeals)
+table1
+#table name = table(data$variable, data$variable)
+
+#3. Run Chi-squared test 
+chisq.test(table1)
+#chisq.test(tablename)
+
+#4. Evaluate Results 
+#My alternative hypothesis is supported because p < 0.05, showing that whether a mosquito will have mulitple blood meals or one blood meal is dependent on whether it is infected with malria.
+``` 
+### Test for Power 
+```{r}
+#A power test tests if your data has the 'power' to detect significance. 
+#1. Load library(pwr) (This was done in the section titled "Installing Packages and Loading from Library")
+
+#2. Create proportional table 
+prop.table(table1)
+
+#3. Calculate Effect Size (this is with the proportions from the infected mosquitos multiple:single)
+h1 = ES.h(0.26436782, 0.07662835)
+#h = ES.h(proportion 1, proportion 2)
+#4. Power test 
+pwr.p.test(h = h1, n = 261, sig.level = 0.05, alternative = "two.sided")
+#pwr.p.test(h = Effect Size label, n = number of observations, sig.level = significance level (0.05), alternative = "two sided")
+#Goal is to have the power>0.8
+#If the sig.level is decreased the power decreases, if n-decreases but the sig level is kept the same the power increases. 
+```
+## Parametric vs. Non Parametric 
+Parametric tests can be performed if the data is normally distributed and compare the results based on means.
+Non Parametric tests can be performed if the data is not normally distributed and do not compare the results based on means. There will be data that is paired (not independent) and the distribution won't be similar and there are methods, like transformation of the data, for dealing with this will be discussed in this section. 
+
+### T-Test: Paired and Non Paired, and Non Parametric Alternatives
+```{r}
+newt = read.csv("NewtResistance.csv", header = T)
+bbird = read.csv("BlackbirdTesto.csv", header = T)
+#A t-test is a test of distribution and to see how close the data comes to a t-distribution. BOTH T-TESTS IS AN IDEAL TEST IF THE INDEPENDENT VARIABLE IS CATEGORICAL AND DEPENDENT VARIABLE IS NUMERICAL. 
+#Assumption for t-tests: data is randomly sampled, dependent variable is normally distributed, and standard deviation and variance are the same in both groups. 
+
+#Non-Paired T-test 
+#1. Test statistical assumptions with a Shapiro-Wilkes, density plot (both test or visualize normality), Levene's Test, and jitter plot (both test or visualized homogeneity of variances). 
+#normality 
+ggplot(newt, aes(AnimalResistance)) + geom_density()
+shapiro.test(newt$AnimalResistance)
+#The p-values is >0.05 so there is no difference between the reistance and the locales-- we cannot reject the null-hypothesis. The W = 0.86838 so the data is not normal. 
+
+#Homogeneity of Variances
+leveneTest(newt$AnimalResistance, group=newt$Locality)
+#leveneTest(data$y-var, group=data$x-var)
+#The null hypothesis of the levene test is that the variance between variables in homogenous. 
+#jitterplot
+ggplot(newt, aes(Locality, AnimalResistance)) + geom_jitter(position=position_jitter(0.1))
+#The variances are not equal. There is less variance in the Warrenton than the Benton. Since the variances are not normal a transformation will need to be performed to use a parametric test. 
+
+#2. Perform a data transformation to make the data closer to nomral, in this case a logistic transformation. 
+#Log transformation (natural log default)
+newt$log.resistance = log(newt$AnimalResistance)
+
+#Testing assumptions with transformed data
+shapiro.test(newt$log.resistance)
+#The p-value has increased and is no longer close to 0.05. The test stat has also increased and is closer to 1, thus the data is closer to normal. Since the data is closer to normal a parametric test can be performed. 
+
+#3. Conduct T-test with log transformed data
+#T-test with log-transformed data 
+t.test(log.resistance ~ Locality, data = newt, var.equal = TRUE)
+#t.test(dependent variable ~ independent variable, data = data, var.equal = TRUE)
+#The null hypothesis is that the means of the two samples are equal and the alternative hypothesis is that the means of the two samples are different. 
+#In this case we can reject the null hypothesis because the p-value < 0.05 and say that there is a difference in resistance between the two locales. 
+
+#4. Conduct Welch's test with untransformed data. 
+#Welch's test is the non-parametric equivalent of a t-test. Since the untransformed data is not parametric. IT IS AN IDEAL TEST IF THE INDEPENDENT VARIABLE IS CATEGORICAL AND DEPENDENT VARIABLE IS NUMERICAL. 
+#Welch test with untransformed data
+t.test(AnimalResistance ~ Locality, data = newt, var.equal = FALSE)
+#t.test(untransformed data ~ independent variable, data = data, var.equal = FALSE)
+#The null hypothesis is that the means of the two samples are the same and the alternative hypothesis is the means of the two samples are different. However, this test assumes that the variance is un-equal. 
+#We can reject the null hypothesis because the p-value > 0.05 and say that there is a difference between the two locales. 
+
+#Paired T-test 
+#Paired t-test is applicable when the data is paired and not independent. For an example from lecture, if the data was for a sunscreen test and you tested the difference of sunburn with or without sunscreen using (assuming participants had 2 arms) 1 arm for the non-sunscreen test and the other for the test with sunscreen. The 2 data points would be paired because they would both be from 1 person or 'treatment unit'. 
+#1.Calculate differences of the data for each side of the paired t-test.
+Before = filter(bbird, Treatment == "Before")
+After = filter(bbird, Treatment == "After")
+diff = (Before$Antibody.production - After$Antibody.production)
+
+#2.Test for Normality
+shapiro.test(diff)
+#The data is normal because the test stat is close to 1 and the p-value is greater than 0.05. 
+
+#Use full dataset for paired t-test (don't use difference, R will calculate).
+t.test(Antibody.production ~ Treatment, data = bbird, paired = TRUE)
+
+#3.T-test alternative for Non Parametric Data
+#If the data is non parametric (not homogenously variant), a Wilcoxon sign rank or Mann-Whitney U test can be used. Below is an example of a Mann-Whitney U test, but to make it a Wilcoxon sign-rank test change paired = "TRUE". BOTH TESTS ARE IDEAL IF THE INDEPENDENT VARIABLE IS CATEGORICAL AND DEPENDENT VARIABLE IS NUMERICAL. 
+#The null hypothesis is that the distribution of the two samples are the same and the alternative hypothesis is that the distribution of the two samples are different.
+wilcox.test(AnimalResistance ~ Locality, data = newt, paired = FALSE)
+#wilcox.test(dependent variable ~ dependent variable, data = data, paired = T/F)
+#The p-value is < 0.5, then we can reject the hypothesis 
+```
+###Pearson's and Spearman's Correlation Coefficient 
+```{r}
+deet = read.csv("DEETMosquitoBites.csv", header = T)
+lion = read.csv("LionNoses.csv")
+
+#Pearson's test assumes the observations are random, x and y are linear, and x and y are normally distributed. It works well when both independent and dependent variables are numerical. Also, to graph the data with a Spearman's coefficient, a scatter plot is best. THESE TESTS ARE IDEAL IF BOTH VARIABLES ARE NUMERICAL. 
+cor.test(deet$dose, deet$bites, method = c("pearson"))
+#cor.test(data$xvar, data$yvar, method = c("pearson"))
+#r = -0.56 
+#There is a strong negative correlation because rho is close to -0.6 and the p-value < 0.05. 
+
+#Spearmans's test is non parametric alternative to Pearson's and rank's measures of each variable seperately. The assumptions for this test are that the observations are random, that there is a monotonic relationship between x and y, and the data is not distributed normally. 
+cor.test(lion$proportionBlack, lion$ageInYears, method = c("spearman"))
+#cor.test(data$xvar, data$yvar, method = c("pearson or spearman"))
+# r = 0.74 
+#There is a strong positive correlation because rho is above 0.5 and the p-value < 0.05.
+```
+### ANOVA and 2-way ANOVA with a post-hoc test, and Non Parametric equivalents
+```{r}
+qpcr = read.csv("qpcr.csv", header = T)
+algae = read.csv("IntertidalAlgae.csv", header = T)
+leptod = read.csv("Leptodora_predation.csv", header = T)
+
+#ANOVA compares the variance between multiple means simultaneously. The null hypothesis is that there is no significant difference between any of the means. The alternative hypothesis is that atleast one mean is different. IT IS AN IDEAL TEST IF THE INDEPENDENT VARIABLE IS CATEGORICAL AND DEPENDENT VARIABLE IS NUMERICAL. 
+#1. ANOVA test 
+aovq = aov(CtValue ~ CellType, data = qpcr)
+#title = aov (y ~ x, data = data frame)
+summary(aovq)
+#There is a significant difference between the Cell Type and the CtValue because the p-value > 0.05. 
+#The result of an ANOVA test is a source table. The first column is the source of variation: (top-bottom) Facotr A (btwn groups), Error (w/ in groups). The second column is degress of freedom: (a-1), (N-a), (N-1). The Third column is Sum of Squares: SSA (sum of squares btwn groups), SSE (sum of squares w/ in groups = SST-SSA), SST (sum of squares total).The fourth column is the Mean of Squares: (MSA = SSA/(a-1)), (MSE = SSE/(N-a)). The fifth column is the F-value (= MSA/MSE). The last column is the p-value and the most useful for reject the null hypothesis. a = # of groups, N = total # of groups, MS = Mean Square Variance.
+ 
+#2. Tukey-Kramer Post hoc 
+#Tukey-Kramer tests can be performed once you confirm that at least one mean is different. This test will do multiple pair-wise comparisons (t-tests) to tell you which means are different. 
+TukeyHSD(aovq)
+plot(TukeyHSD(aovq))
+#plot(tukeytest(ANOVAtitle)), plots the data on a 95% family wise confidence level graph and is a visual way of determining which variables are significantly different. 
+#There is a significant effect on CtValue between the wtHeLa-Ltn1_1, Ltn1_3-Ltn1_2m and wtHeLa-Ltn1_3, all of these pairs have a p-value <0.05 ->  wtHeLa<Ltn1_1, Ltn1_3>Ltn1_2m and wtHeLa<Ltn1_3
+
+#2-way ANOVA 
+#A 2-way ANOVA is a test to be performed when there is two factors of interest.  
+#There are 3 hypotheses for for a 2-way ANOVA: 
+#1. No significant effect of factor A on Y. 
+#2. No significant effect of factor B on Y.
+#3. No sifinificant interaction between A and B. 
+
+#Three null hypotheses for the algae data for a 2-way ANOVA: 
+#1.No significant effect of height on SqrtArea. 
+#2.No significant effect of height on existence of herbivores. 
+#3.No significant effect of existence of herbivores on SqrtArea. 
+
+#2-way ANOVA
+aov2way = aov(sqrtArea ~ height*herbivores, data = algae)
+summary(aov2way)
+#There is a significant effet of height on existence of herbivores because the p-value is < 0.05. 
+#To visually express a 2-way ANOVA use a point and error plot.
+
+#Kruskal-Wallis 
+#This test is the non parametric equivalent of ANOVA. IT IS AN IDEAL TEST IF THE INDEPENDENT VARIABLE IS CATEGORICAL AND DEPENDENT VARIABLE IS NUMERICAL. 
+kruskal.test(PredRate ~ Density, data = leptod)
+#There is a significant effect of Prey desnity level on predation rate because the p-value < 0.05. 
+```
+## Ordination
+###Pricipal Component Analysis (PCA)
+```{r}
+# Ordination doesn't test hypothesis explicitly, instead tests the data and is often the first step in data synthesis. 
+#PCA:uses orthogonal transformation and correlates relationships amongst multiple numerical variables. The goal is to ID groups of similar data. 
+#Assumptions of PCA: data is: independent and heteroskedastic. Try to eliminate multi-colinearity. 
+#Rules of using a PCA: Data is continuous, variables are scaled, not categorical data or dummy data, groupings are logical, number of var. < numer of observations, numerical data is not counts. 
+#PCA function = prcomp(formula, center = TRUE, scale = TRUE)
+#Plot function on scatter plot (PC1 vs. PC2)
+
+#prep and plot data
+library (tidyverse)
+library(gridExtra)
+library(ggplot2)
+data(iris)
+head (iris)
+
+#Plot it
+ggplot (iris, aes(x=Sepal.Length, y=Sepal.Width, color=Species)) + geom_point() + stat_smooth(method="lm")
+
+#scaled iris data- always scale your data just in case (aka normalizng data range)
+normal<- ggplot (iris, aes(Petal.Length)) + geom_density()
+scaled<-  ggplot (iris, aes(scale (Petal.Length))) + geom_density()
+
+grid.arrange(normal, scaled, ncol=2)
+
+iris.sub<- select (iris, Sepal.Length, Sepal.Width, Species)
+
+iris.pca<-prcomp(iris[,1:4], scale = TRUE)
+summary (iris.pca)
+#head (iris.pca)
+
+head (iris.pca$x) #eignevector outputs
+
+iris.sub<- cbind (iris.sub, iris.pca$x) 
+# Prepare to plot the Pric. components vs. the variables that created them. 
+
+ggplot (iris.sub, aes (x=Sepal.Length, y=Sepal.Width)) + geom_point() + stat_smooth(method="lm")
+
+ggplot (iris.sub, aes (x=Sepal.Length, y=PC1)) + geom_point() + stat_smooth(method="lm")
+
+ggplot (iris.sub, aes (x=Sepal.Length, y=PC2)) + geom_point() + stat_smooth(method="lm")       
+
+#plot the results of the complete PCA 
+iris.result<-cbind (iris, iris.pca$x)
+head (iris.result)
+
+ggplot (iris.result, aes (PC1, PC2, color=Species)) + geom_point() + 
+  stat_ellipse(geom="polygon", alpha=0.25) + theme_bw()
+
+library(usethis)
+library(devtools)
+install_github("vqv/ggbiplot")
+library (ggbiplot)
+install_github('fawda123/ggord')
+library(ggord)
+data(iris)
+ggord <- prcomp(iris[,1:4],scale=TRUE)
+ggord(ggord, iris$Species)
+```
+###Principle Coordinate Analysis (PCoA) 
+```{r}
+#Additional Notes for this chunk are from: https://www.sequentix.de/gelquest/help/principal_coordinates_analysis.htm
+#PCoA is an alternative to PCA and is a method of multi-dimensional analysis (MDS) used to explore and visualize the similarities and disimilarities of a data set. 
+#The imput data is a summary of the raw data, measure of distance between samples, and discrete counts. 
+#Required packages for PCoA and NMDS, and example data "mite"
+library (vegan)
+library (ape)
+data (mite)
+str (mite)
+
+#complete PcoA
+# Select rows 1:30. Species 35 is absent from these rows. Transform to log -> log()
+mite.log <- log(mite[1:30,-35]+1)  # Equivalent: log1p(mite[1:30,-35])
+
+# Principal coordinate analysis and simple ordination plot
+mite.D <- vegdist(mite.log, "bray") # creates a distance matrix from the raw data 
+res <- pcoa(mite.D) #completes the pcoa 
+
+res$values
+biplot(res)
+```
+###Non-metric Dimensional Scaling (NMDS)
+```{r}
+#Additonal notes for this chunk are from:https://sites.ualberta.ca/~lkgray/uploads/7/3/6/2/7362679/slides-nmds.pdf
+#NMDS is alternative to PCA. 
+#Relies on distances (ranked order) -> non-metric. Does not require a dissimilarity matrix, becuase it is built in to the function. Based around stress optimization. 
+library(vegan)
+set.seed(2)
+community_matrix=matrix(sample(1:100,300,replace=T),nrow=10,
+  dimnames=list(paste("community",1:10,sep=""),paste("sp",1:30,sep=""))) # generate a site X species matrix
+
+example_NMDS=metaMDS(community_matrix, # Our community-by-species matrix
+                     k=2) # The number of reduced dimensions
+
+example_NMDS=metaMDS(community_matrix,k=2,trymax=100)
+
+stressplot(example_NMDS)
+summary (example_NMDS)
+plot(example_NMDS)
+
+#plot(example_NMDS, type = "n")
+#points(example_NMDS, display = "species", cex = 0.8, pch=21, col="red", bg="yellow")
+#text(example_NMDS, display = "sites", cex=0.7, col="blue")
+```
+###Reqularized Discriminate Analysis (RDA) or Constained Correspondence Analysis
+```{r}
+#Data analysis used when multi-co-linearity is high and when the categorical data can constrain analysis. 
+#Need to get rid of NA values or missing values. library (vegan)
+data(dune); head (dune)
+data(dune.env); head (dune.env)
+mod <- rda(dune ~ Moisture + Management, dune.env) # numeric count data constrained by a categorical variable 
+
+update(mod, simulate(mod) ~ .)
+## An impression of confidence regions of site scores
+plot(mod, display="sites")
+```
+###Correspondence Analysis and DCA 
+```{r}
+#CA and DCA are both PCA alternatives. 
+#Used to analyze categorical variables (2-way contigency tables)
+#Can be used to find categorical frequencies of data 
+#DCA breaks confouned variables. library("FactoMineR")
+library("factoextra")
+library (gplots)
+library(FactoMineR)
+data(housetasks)
+head(housetasks)
+
+# 1. convert the data as a contingency table
+dt <- as.table(as.matrix(housetasks)); dt
+# 2. Graph it 
+balloonplot(t(dt), main ="housetasks", xlab ="", ylab="",
+            label = FALSE, show.margins = FALSE)
+# 3. Test it
+chisq <- chisq.test(housetasks)
+chisq
+
+# Correspondence Analysis function 
+?CA
+
+res.ca <- CA(housetasks, graph = FALSE)
+print (res.ca)
+
+eig.val <- get_eigenvalue(res.ca)
+eig.val
+fviz_screeplot(res.ca, addlabels = TRUE, ylim = c(0, 50))
+
+# repel= TRUE to avoid text overlapping (slow if many point)
+fviz_ca_biplot(res.ca, repel = TRUE)
+
+#DCA- Detrended Correspondence Analysis
+library (vegan)
+?decorana
+dca1<- decorana(housetasks)
+summary (dca1)
+plot (dca1)
+```
+### Linear and Logistic Regression 
+```{r}
+boobies = read.csv("BluefootedBoobies.csv", header = T)
+guppy = read.csv("DeadGuppies.csv", header = T)
+
+#Linear Regression
+lm.boobies = lm(futureBehavior ~ nVisitsNestling, data=boobies)
+summary(lm.boobies)
+#summary(lmtitle) generates a r-squared value that is also known as the coefficient of determination. It is a value between 0-1 and the closer to 1, the more points there are that are close to the line that would be generated on a graph. See an example of this graph in the scatter plot chunk. 
+#R2 value = 0.39
+#the R2 is lableled as multiple R-squared in the summary
+#coefficients = 0.027
+#P = 0.0012 
+#Summarize conclusions:We can reject the null hypothesis because the slope has a positive difference from 0 and the p-value < 0.05. Meaning that there is a difference between the number of visits and the future behavior. 
+
+#Logistic Regression
+glm = glm(mortality ~ exposureDurationMin, data = guppy, family = "binomial")
+summary(glm)
+#glm stands for generalized linear regression model. It is a regression test on a binary categorical dependent variable. From the summary call you want to pay attention to the p value in the row that corresponds with your x-variable (exposure duration). This p value will tell you if there is a signficant difference between the x-variable and the y-variable (p = 1.64e-8).This will also create a line on a graph. See an example of this graph in the scatter plot chunk.  
+```
+##EcoInformatics 
+###Species Accumulation Curves 
+```{r}
+library(vegan)
+
+data(BCI)
+head (BCI)
+str (BCI)
+
+sp2 <- specaccum(BCI, "random")
+sp2
+summary(sp2)
+
+plot(sp2, ci.type="poly", col="blue", lwd=2, ci.lty=0, ci.col="lightblue")
+boxplot(sp2, col="yellow", pch="+")
+
+## Fit Lomolino model to the exact accumulation
+mod1 <- fitspecaccum(sp2, "lomolino")
+
+coef(mod1)
+fitted(mod1)
+plot(sp2)
+
+## Add Lomolino model using argument 'add'
+plot(mod1, col=2, lwd=2)
+
+## Fit Arrhenius models to all random accumulations
+mods <- fitspecaccum(sp2, "arrh")
+plot(mods, col="hotpink")
+
+boxplot(sp2, col = "yellow", border = "blue", lty=1, cex=0.3)
+
+data(BCI)
+H <- diversity(BCI); H
+simp <- diversity(BCI, "simpson"); simp
+invsimp <- diversity(BCI, "inv"); invsimp
+
+## Unbiased Simpson (Hurlbert 1971, eq. 5) with rarefy:
+unbias.simp <- rarefy(BCI, 2) - 1
+
+## Fisher alpha
+alpha <- fisher.alpha(BCI)
+## Plot all
+pairs(cbind(H, simp, invsimp, unbias.simp, alpha), pch="+", col="blue")
+
+## Species richness (S) and Pielou's evenness (J):
+S <- specnumber(BCI) ## rowSums(BCI > 0) does the same...
+J <- H/log(S); J
+
+## beta diversity defined as gamma/alpha - 1:
+data(dune)
+data(dune.env)
+alpha <- with(dune.env, tapply(specnumber(dune), Management, mean))
+gamma <- with(dune.env, specnumber(dune, Management))
+gamma/alpha - 1
+```
+###iNext using Hill numbers and rarefaction to estimate species richness 
+```{r}
+library (iNEXT)
+data(spider)
+str(spider)
+
+out <- iNEXT(spider, q=c(0, 1, 2), datatype="abundance", endpoint=500)
+# Sample‐size‐based R/E curves, separating by "site""
+ggiNEXT(out, type=1, facet.var="site")
+
+## Not run:
+# Sample‐size‐based R/E curves, separating by "order"
+ggiNEXT(out, type=1, facet.var="order")
+
+# display black‐white theme
+ggiNEXT(out, type=1, facet.var="order", grey=TRUE)
+```
+###Beta Diversity 
+```{r}
+data(dune)
+data(dune.env)
+z <- betadiver(dune, "z")
+mod <- with(dune.env, betadisper(z, Management))
+mod
+plot (z)
+```
+### More on transforming Data 
+Transforming data is usually done to make data fit the assumptions of a statistical test better. However, before you plot data you have to 'back transform' the mean and standard error back into original units. An example of that is done with the leptodora data that has been log transformed. By putting the mean and the upper and lower bounds of standard error of data to the power of e (~2.718) the ln() transformation of the data is being undone. 
+```{r}
+#Leptodora summary table
+#leptod.summary = leptod %>% 
+ # group_by(Density ) %>% 
+#  summarise(groups = "drop", mean.logRate = mean(logRate),
+#           sd.logRate = sd(logRate), 
+#            se.logRate = sd(logRate/sqrt(n())),
+#            lower = mean.logRate - se.logRate, 
+#            upper = mean.logRate + se.logRate, 
+#            backmean = 2.718^(mean.logRate),
+#            backlow = 2.718^(lower),
+#            backup = 2.718^(upper))
+#After backtransforming, we can plot the data. 
+#rearranging order of categories
+#factdensity = factor(leptod.summary$Density, levels = c('Low', 'Med1', 'Med2', 'High'))
+#factdensity 
+#Bar and Error Plot  
+#ggplot(leptod.summary, aes(factdensity, backmean)) + geom_col() +
+#  geom_errorbar(aes(ymin = backlow, ymax = backup), width = 0.1) + 
+#  theme(panel.background = element_blank()) + 
+#  theme(panel.border = element_rect(fill = NA)) + 
+#  ylab("Predation Rate") + 
+#  xlab("Prey Density")
+```
+
+# Data Visualization
+## Histogram 
+```{r}
+#A histogram at showing the distribution of data across a continuous x axis that is divided into 'bins'. 
+#Example using the __sleep__ data with 50 bins and 10 bins:
+ggplot(data = sleep, aes(extra)) + geom_histogram(bins = 50) + ggtitle("bin=50")
+ggplot(data = sleep, aes(extra)) + geom_histogram(bins = 10) + ggtitle("bin=10")
+#Note: When the bin size changes the distribution pattern of the data changes. With a larger bin asize the data are more widley spread out, but with a smailler bin size the data are more dense. Having a smaller bin size makes it easier to see the distribution curve- to a point. 
+```
+## Box Plot 
+```{r}
+#Boxplots are good at dealing with data where the independent variable is categorical and the dependent variable is numerical. It is also good for seeing the distribution of data around the mean and determining if a data set has outliers. The lines (whiskers) on the box plot describe the quartiles of data. The line on the top of the box notate Q3 and the line on the bottom of the box notate Q1. Any outlier values outside of the quartiles are notated as dots. 
+#The following is an example using the __Insect Sprays__  data set. In this data the only two sprays that have outliers are sprays C & D. 
+ggplot(InsectSprays, aes (x = spray, y = count)) + geom_boxplot()
+#ggplot(dataset, aes(x = x var, y = y var)) + geom_boxplot()
+```
+## Violin Plot 
+```{r}
+#A Violin Plot is good at demonstrating around which values the data are grouped. 
+#This is an example using data about iris flowers' sepal length. 
+data("iris")
+ggplot(data = iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+  geom_violin(alpha = 0.5) + ylab("Sepal Length (mm)")
+#ggplot (data = dataname, aes(x = data for x axis, y = data for y-axis, fill = data for determining color)) + geom_violin(alpha = opaqueness of the color) + ylab("Title of y-axis")
+```
+## Density Plot 
+```{r}
+#A density plot is good a showing the distribution of data as a curve. Instead of how a violin plots' distribution is horizontal, a density plots' distribtuion is vertical. The different variables are also stacked on top of eachother instead of right next to eachother. 
+ggplot(data = iris, aes(Sepal.Length, fill = Species)) + geom_density(alpha = 0.5) + xlim(c(0,9))
+#ggplot( data = dataname, aes(Dependent variable, fill = Independent Variable)) + geom_denstiy(alpha = opaqueness of color) + xlim(lower limit of x axis, upper limit of x axis)
+```
+## Stacked Bar Plot and 100% Stacked Bar Plot 
+```{r}
+#A stacked bar plot shows the factors of a variable ontop of eachother, but in proportions of real numbers of observations to the other variables. A 100% stacked bar plot shows the ratios of observations of a variable ontop of eachother, but in relative proportions (everything is out of 100%). IT IS IDEAL TO USE A 100% STACKED BAR WHEN BOTH VARIABLES ARE CATEGORICAL. The ratios of observations ina  variable are more comprable in a 100% stacked bar plot because the proportion ratios are the same size. For example in the Malaria data it is easily observable that uninfected mosquitos are more likely to have one blood meal, while the infected mosquitos are more likely to have multiple.
+#Examples of a stacked bar plot and a 100% stacked bar plot using the Malaria data: 
+
+#Stacked bar plot Malaria 
+ggplot(Malaria, aes(infectionStatus, fill = multipleBloodMeals)) + geom_bar()
+
+#100% stacked bar plot Malaria 
+ggplot(Malaria, aes(infectionStatus, fill = multipleBloodMeals)) + geom_bar(position = "fill")
+```
+##Bar and Error or Point and Error, Paired Point 
+```{r}
+#leptod = read.csv("Leptodora_predation.csv", header = T)
+#ALL OF THESES GRAPHS ARE IDEAL WHEN THE INDEPENDENT VARIABLE IS CATEGORICAL AND THE DEPENDENT VARIABLE IS NUMERICAL. 
+
+# First step in making a point and error plot is making the summary table
+#algae = read.csv("IntertidalAlgae.csv", header = T)
+#Low = filter(algae, height == "low")
+#Mid = filter(algae, height == "mid")
+
+#low.summary = Low %>% group_by(herbivores) %>%
+#  summarize(mean.area = mean(sqrtArea), 
+#            se.area = sd(sqrtArea/sqrt(n())))
+#mid.summary = Mid %>% group_by(herbivores) %>% 
+#  summarize(mean.area = mean(sqrtArea), 
+#            se.area = sd(sqrtArea/sqrt(n())))
+#combo.summary = rbind(low.summary, mid.summary)
+#Height = c("Low", "Low", "Mid", "Mid"); Height = as.data.frame(Height)
+
+#total.summary = cbind(Height, combo.summary)
+
+#Point and error plot
+#ggplot(total.summary, aes(herbivores, mean.area, color = Height, shape = Height)) + #geom_point(size = 3) + geom_errorbar(aes(ymin = mean.area - se.area, ymax= mean.area+se.area), #width = 0.1) + xlab("Herbivore Treatments") + ylab("Area of Algal Cover")
+
+
+#The categories for this plot were arranged in order of increasing prey density. 
+#factdensity = factor(leptod.summary$Density, levels = c('Low', 'Med1', 'Med2', 'High'))
+#factdensity 
+#Bar and Error Plot 
+#ggplot(leptod.summary, aes(factdensity, backmean)) + geom_col() +
+#  geom_errorbar(aes(ymin = backlow, ymax = backup), width = 0.1) + 
+#  theme(panel.background = element_blank()) + 
+#  theme(panel.border = element_rect(fill = NA)) + 
+#  ylab("Predation Rate") + 
+#  xlab("Prey Density")
+#Bar and error or point and error for data sets where the independent variable is categorical and the dependent variable is numerical.
+
+#Paired point plot
+#Paired point plots are good for paired t-tests because it connects the data points that belong to the same subject or treatment unit. 
+ggplot(bbird, aes(x=Treatment, y = Antibody.production)) + geom_point() + geom_line(aes(group = blackbird ))
+```
+## Scatterplot 
+```{r}
+#SCATTERPLOTS ARE GOOD IF BOTH VARIABLES ARE NUMERICAL OR THE DEPENDENT VARIABLE IS CATEGORICAL. 
+#Scatterplot plot with correlation coefficient
+ggplot(lion, aes(ageInYears, proportionBlack)) + geom_point() + annotate("text", label = "r = 0.74", x = 10, y = 0.5)
+
+#Scatterplot with linear model
+ggplot(boobies, aes(nVisitsNestling, futureBehavior)) + geom_point() + stat_smooth(method = "lm")
+#lm = linear regression 
+#`geom_smooth()` using formula 'y ~ x'
+#A linear regression is describes the relationship between x and y. IT IS AN IDEAL TEST IF BOTH VARIABLES ARE NUMERICAL. 
+
+#Scatterplot with logistic model
+glm = glm(mortality ~ exposureDurationMin, data = guppy, family = "binomial")
+#glm = glm(y~x, data = dataframe, family + "binomial")
+ggplot(guppy, aes(exposureDurationMin, mortality)) + geom_point() +
+  geom_smooth(data = guppy, aes(exposureDurationMin, mortality), method = "glm", method.args = list(family = "binomial"), se = FALSE)
+#glm = logistic regression
+#LOGISITIC REGRESSION IS IDEAL IF THE INDEPENDENT VARIABLE IS NUMERICAL AND THE DEPENDENT VARIABLE IS CATEGORICAL. In this graph the depenent variable is binary category (dead = 0 or alive = 1)
+```
+## Residual Plots 
+```{r}
+#Residual plots is a visual diagnostic test so that you can see the scatter (scedasticity) and curve along the x axis (bias). What you should look for in these plots is: symmetric scatter, little noticeable curve along the x axis (bias), and approximate equal variance above or below the x axis at all x values. 
+#plot the residuals for bluefooted boobies
+ggplot(lm.boobies) + geom_point(aes(.fitted,.resid )) + geom_hline(aes(yintercept = 0))
+#ggplot(linearregressiontitle) + geom_point(.fitted,.resid)) + geom_hline(aes(yintercept = 0))
+#The residuals for this plot at low x-values there is significant variance and significant scatter, but there is less variance as the x-values increase.
+```
+## Heat Maps and Cluster Distance Analysis
+```{r}
+#load necesarry packages 
+library("cluster")
+library("factoextra")
+library("magrittr")
+library("gridExtra")
+
+#example data and preparation of data 
+data("USArrests")
+head(USArrests)
+my_data <- USArrests %>%
+  na.omit() %>%          # Omit N/A values 
+  scale()                # Scale variables
+head(my_data, n = 3)     #See first 3 lines
+
+#Compute distance matrix
+res.dist <- get_dist(USArrests, stand = TRUE, method = "euclidean")
+
+#Visualize distance matrix
+fviz_dist(res.dist, 
+   gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+
+#Calculate optimal clusters
+fviz_nbclust(my_data, kmeans, method = "wss")
+```
+##Cluster Dendogram and Hierarchial Clustering
+```{r}
+#Required material
+#data("USArrests")  # Load the data set
+#head(USArrests,5)
+
+#str(USArrests)
+#summary(USArrests)
+
+# required libs 
+#library(cluster)
+#library(dendextend)
+#library(factoextra)
+
+US_df <- scale(USArrests)
+head(US_df,4)
+summary (USArrests)
+summary (US_df)
+
+##Hierarchial Clustering in R 
+#1. Run distance analysis using dist() func. 
+#dist(dataFrame, method = "") 
+#Euclidean = measuring shortest distance btwn 2 points. Manhattan = measuring dist btwn 2 whole integers in smallest amt. of integers, confined to rules. 
+dist <- dist(US_df, method = "euclidean")
+
+#2. Cluster Points using hclust() func. 
+#hclust = hierarchical cluster analysis 
+#hclust(output of dist(), method="")
+#Complete method = finds similar clusters and tends to create more compact clusters.
+hlink <- hclust(dist, method = "complete" )
+#Create a dendrogram using plot() and clustered data [hlink]. A dendogram looks and is similar to phylogeny, and is a way to plot dissimilarity. It is focused on what clustering is happening and not what the clustering is based on. 
+plot(hlink, cex = 0.7, hang = -2) 
+
+# Ward's method = concerned with distance btwn clusters using centroid dist (?) and variance in clusters. Goal = minimal variance w/in cluster and find compact 'spherical' clusters. 
+hlink2 <- hclust(dist, method = "ward.D2" )
+
+##Adjust dendgram to make it better
+# Cut tree into 4 groups or create more functional clusters. 
+#cutree() 'cuts a tree' or dendogram into either a specific # of grps or "cut height(s)". k= # of clusters
+sub_grp <- cutree(hlink2, k = 4)
+# Number of members in each cluster using table()
+table(sub_grp)
+#plot the new dendogram. 
+plot(hlink2, cex = 0.6)
+#cex is the scaling of text relative to default scale. 
+rect.hclust(hlink2, k = 4, border = 2:8)
+
+library(dplyr)
+#create new table and add cluster location of data point as last column. Using fviz_cluster() will cluser the data points on a graph (see below).
+USArrests %>% mutate(cluster= sub_grp)%>%head()
+library(factoextra)
+fviz_cluster(list(data = US_df, cluster = sub_grp))
+```
+## K-means partitioning clusters
+```{r}
+#load "Heat Maps and Cluster Distance Analysis chunk before running code below." 
+set.seed(13)
+km.res <- kmeans(my_data, 3, nstart = 25)
+# Visualize
+library("factoextra")
+fviz_cluster(km.res, data = my_data,
+             ellipse.type = "convex",
+             palette = "jco",
+             ggtheme = theme_minimal())
+#k-means methods for partioning clusters is very basic machine learning. The distributions and grouping is based on means of the data. K = the number of clusters. 
+```
+## Partitioned Clustering
+```{r}
+# Compute PAM
+library("cluster")
+pam.res <- pam(my_data, 3)
+# Visualize
+fviz_cluster(pam.res)
+#PAM method of clustering stands for: Partitioning Around Medoids or Partioning Along Medians. It is a more robust verious of k-means clustering and is less sensitive to outliers. 
+```
+## Depth Proflie 
+```{r}
+ggplot(grenlie,aes(x=Depth,y=SurfaceLight))+
+  #set up the asthetics,
+  #If you want the line to be broken because this is technically discrete data use line type 2 "geom_line(linetype = 2)"
+  #To indicate discrete data I just graph the points (geom_point()) and the line (geom_line())
+  geom_line() + geom_point() +
+  #reverse depth so it starts at zero
+  scale_x_reverse()+
+  #put the y axis labes on the opposite side so when its flipped it will appear at top
+  scale_y_continuous(position="right") +
+  #this is how you reverse the look and order or the coordinates for the graph
+  #use ylim=c()) inside coord_flip() to make sure the the limits on the y-axis are what you want them to be 
+  coord_flip(ylim = c(0,100))
+
+#Extra: how to find the light attenuation coefficient or extinction coefficient 
+
+#In this data I calculate the natural log of % surface light penetration in Excel but you can also do it using the log() function and create a new data frame 
+
+#plot natural log of Surface Light with linear regression
+#linear regression will create a line of best fit for this data. The slope of the line of best fit is the light attenuation coefficient or extinction coefficient for your data
+ggplot(grenlie, aes(Depth, LNSL)) + geom_point() + stat_smooth(method= "lm") + scale_x_reverse()+ scale_y_continuous(position="right") + coord_flip() + xlab("Depth (m)") + ylab("ln(Surface Light)") + annotate("text", label = "y = -1.443x + 5.501", x = 5, y = 5)
+#the annotation command in this code is putting the line attenuation coefficient on the graph (see below how to calculate)
+
+#find coefficients of line of fit
+#lm() is just redoing the math behind the line of the best fit in the graph of ln(%surface light penetration)
+#the coefficient labeled as data$x_variable will be the light attenuation coefficient or extinction coefficient. 
+lm(formula = grenlie$LNSL ~ grenlie$Depth)
+
+```
+## Annotating Graphs 
+```{r}
+lion = read.csv("LionNoses.csv")
+
+#Annotating graphs is good for doing things like putting a correlation rho coefficient on the graph.
+#Scatterplot plot with correlation coefficient
+ggplot(lion, aes(ageInYears, proportionBlack)) + geom_point() + annotate("text", label = "r = 0.74", x = 10, y = 0.5)
+#ggplot(code for data) + geom_point() + annotate("text", label = "text of label", x = x-cooridinate of lable, y = y-cooridinate of label)
+```
+# General coding and data tips 
+1. Be concise 
+2. Do not use spaces in between words, unless it is the title of something and then the title needs to be in quotations (i.e "Sepal Lenght (mm)"). 
+3. Keep the titles of things short (especially the titles of variables) and easy to type.
+4. Annotate your coding constantly so that you remember exactly what you were doing when you left off, no matter when you come back to it. 
+5. Always create meta data. 
+6. Understand what your hypothese are before you collect and analyze data. 
+7. Organize your data before you start and as you go so you don't have to organize it before you analyze and slow down your project. 
+
+

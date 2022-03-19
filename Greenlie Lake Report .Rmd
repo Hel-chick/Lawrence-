@@ -1,0 +1,72 @@
+---
+title: "Greenlie Lake Report"
+author: "Helen Threlkeld"
+date: "9/30/2021"
+output: word_document
+---
+#Data 
+```{r setup, include=FALSE}
+setwd("/Users/Helen/OneDrive - Lawrence University/Aquatic Biology")
+grenlie = read.csv("GrenlieLake.csv", header = T)
+
+# needed to convert .xslx file into .csv
+```
+
+#Libraries
+```{r}
+library(tidyverse)
+library(ggplot2)
+```
+
+#Graphs 
+```{r}
+#Temperature 
+ggplot(grenlie, aes(Depth, Temperature)) + geom_line() + geom_point() + xlab("Depth (m)" ) + ylab("Temperature (C) ") + scale_x_reverse() + scale_y_continuous(position="right") + coord_flip()
+
+#Dissolved Oxygen
+ggplot(grenlie, aes(Depth, DissolvedOxygen)) + geom_line() + geom_point() + ylab("Dissolved Oyxgen (ug/L)") + xlab("Depth (m)" ) + scale_x_reverse()+ scale_y_continuous(position="right") + coord_flip()
+
+#pH
+ggplot(grenlie, aes(Depth, pH)) + geom_line() + geom_point() + xlab("Depth (m)" ) + scale_x_reverse()+ scale_y_continuous(position="right") + coord_flip()
+
+#Chlorophyll a
+ggplot(grenlie, aes(Depth, Chlorophylla)) + geom_line()  + geom_point() + xlab("Depth (m) ") + ylab("Chlorophyll a (ug/L)" )+ scale_x_reverse()+ scale_y_continuous(position="right") + coord_flip()
+
+#Surface Light 
+#Tried making depth profile with surface light first so that's why all of the arguments and directions are in this code
+ggplot(grenlie,aes(x=Depth,y=SurfaceLight))+
+  #set up the asthetics,
+  #If you want the line to be broken because this is technically discrete data use line type 2 "geom_line(linetype = 2)"
+  #To indicate discrete data I just graph the points (geom_point()) and the line connecting the points (geom_line())
+  geom_line() + geom_point() +
+  #reverse depth so it starts at zero
+  scale_x_reverse()+
+  #put the y axis labes on the opposite side so when its flipped it will appear at top
+  scale_y_continuous(position="right") +
+  #this is how you reverse the look and order or the coordinates for the graph
+  #use ylim=c()) inside coord_flip() to make sure the the limits on the y-axis are what you want them to be 
+  coord_flip(ylim = c(0,100))
+
+#plot natural log of Surface Light with linear regression
+ggplot(grenlie, aes(Depth, LNSL)) + geom_point() + stat_smooth(method= "lm") + scale_x_reverse()+ scale_y_continuous(position="right") + coord_flip() + xlab("Depth (m)") + ylab("ln(Surface Light)") + annotate("text", label = "y = -1.443x + 5.501", x = 5, y = 5) + annotate("text", label = "R^2 = 0.91", x = 5.5, y = 5)
+
+#find coefficients of line of fit
+#the coefficient labeled as data$x_variable Estimate Std. will be the light attenuation coefficient or extinction coefficient and the (Intercept) Estimate Std. will be the line intercept
+lmLNSL = lm(formula = grenlie$LNSL ~ grenlie$Depth)
+summary(lmLNSL)
+
+```
+
+#Sources 
+https://stackoverflow.com/questions/19754365/plotting-a-depth-profile-with-ggplot
+
+
+
+
+
+```
+
+
+```
+
+

@@ -1,0 +1,169 @@
+---
+title: "Homefield Adantage Stats"
+author: "Helen Threlkeld and Molly Long"
+date: "1/21/2021"
+output: word_document
+---
+```{r}
+data1 <- read.csv("MycoDB_version4.csv", header = T)
+data2<- subset(data1, select = c(PlantFamily,EFFECTSIZE1,NONMYCOCONTROL2,FERTP,FERTN,INOC.COMPLEXITY,STERILIZED,LOCATION,LA_Code,ESTVAR1,ESTVAR3), Rua2016=="YES")
+data<-data2[data2$LA_Code %in% c("A","B","C","D","E"), ]
+data$PlantFamily <- as.factor(data$PlantFamily)
+data$EFFECTSIZE1 <- as.numeric(data$EFFECTSIZE1)
+data$NONMYCOCONTROL2 <- as.factor(data$NONMYCOCONTROL2)
+data$FERTP <- as.factor(data$FERTP)
+data$FERTN <- as.factor(data$FERTN)
+data$INOC.COMPLEXITY <- as.factor(data$INOC.COMPLEXITY)
+data$STERILIZED <- as.factor(data$STERILIZED)
+data$LOCATION <- as.factor(data$LOCATION)
+data$LA_Code <- as.factor(data$LA_Code)
+#scale(data2$EFFECTSIZE1, )
+?scale
+#todo: scale numeric variables 
+```
+###New analysis ANOVA
+```{r}
+library(car)
+library(dplyr)
+library(rstatix)
+library(tidyverse)
+library(ggpubr)
+
+#Check Assumptions 
+
+#Check outliers 
+data %>%
+ group_by(LA_Code, LOCATION,INOC.COMPLEXITY) %>%
+ identify_outliers(EFFECTSIZE1)
+
+#Check normality
+model  <- lm(EFFECTSIZE1 ~ LA_Code*LOCATION*INOC.COMPLEXITY, data = data)
+# Create a QQ plot of residuals
+ggqqplot(residuals(model))
+# Compute Shapiro-Wilkes test of normality
+shapiro.test(residuals(model))
+
+#QQ Plot by LA_Code and Inoculum complexity 
+ggqqplot(data, "EFFECTSIZE1", ggtheme = theme_bw()) +
+  facet_grid( LOCATION + INOC.COMPLEXITY ~ LA_Code, labeller = "label_both")
+
+#Homogenetiy variance assumption
+leveneTest(data$EFFECTSIZE1 ~ data$LA_Code*data$LOCATION*data$INOC.COMPLEXITY)
+#p-val < 0.05 so the variance is homogenous 
+
+#anova test 
+#res.aov <- data %>% anova_test(EFFECTSIZE1 ~ LA_Code*LOCATION*INOC.COMPLEXITY)
+#summary(res.aov)
+
+aov3 = aov(EFFECTSIZE1 ~ LA_Code*LOCATION*INOC.COMPLEXITY, data = data)
+summary(aov3)
+
+TukeyHSD(aov3)
+plot(TukeyHSD(aov3))
+
+#The variable that had a significant effect on EFFECT SIZE was LA_Code
+
+#There is significant difference between A&E and C&E, single vs multi inoc, E:Single vs A:Whole, C:Lab vs E:Lab, 
+
+
+#source:https://www.datanovia.com/en/lessons/anova-in-r/#three-way-independent-anova
+```
+###Qe
+##Null Hypothesis: No difference among effect sizes.
+#Compares effect sizes. 
+
+###Qm
+##Null Hypothesis: Model using predictor variable is no stronger than general model. 
+#Similar to X2 test and based on X2 distribution. 
+
+###Planned Contrast test 
+#??: Not clear if it is a t-test or something else.]
+#Planned contrast is a post-hoc test for an ANOVA. 
+
+###Mean Effect Size 
+```{r}
+#todo: change y-axis line divisions, planned contrasts 
+#Full Data 
+library(stats)
+library(ggplot2)
+by_LA_Code.fds = data %>%
+  group_by(LA_Code)
+
+by_LA_Code.summary.fds = by_LA_Code.fds %>% summarise(
+  m.fds = mean(EFFECTSIZE1),
+  sd.fds = sd(EFFECTSIZE1),
+  se.fds = sd(EFFECTSIZE1/sqrt(n())),
+  lower.fds = m.fds - se.fds,
+  upper.fds = m.fds + se.fds)
+
+#Full data set graph
+ggplot(by_LA_Code.summary.fds, aes(LA_Code, m.fds)) + geom_point(size = 3) + geom_errorbar(aes(ymin = lower.fds, ymax= upper.fds), width = 0.1) + xlab("LA_Code") + ylab("Mean Effect Size") + ggtitle("Full Data Set") + ylim(-1,1.5) + geom_hline(yintercept=0, linetype="dashed")
+
+#Single Innocula 
+data.single = subset(data, INOC.COMPLEXITY == "Single")
+by_LA_Code.single = data.single %>%
+  group_by(LA_Code)
+
+by_LA_Code.single.summary = by_LA_Code.single %>% summarise(
+  m.single = mean(EFFECTSIZE1),
+  sd.single = sd(EFFECTSIZE1), 
+  se.single = sd(EFFECTSIZE1/sqrt(n())),
+  lower.single = m.single - se.single, 
+  upper.single = m.single + se.single)
+
+ggplot(by_LA_Code.single.summary, aes(LA_Code, m.single)) + geom_point(size = 3) + geom_errorbar(aes(ymin = lower.single, ymax= upper.single), width = 0.1) + xlab("LA_Code") + ylab("Mean Effect Size") + ggtitle("Single Innocula") + ylim(-1,1.5) + geom_hline(yintercept=0, linetype="dashed")
+
+#Lab Studies 
+data.lab = subset(data, LOCATION == "lab")
+by_LA_Code.lab = data.lab %>% 
+  group_by(LA_Code)
+
+by_LA_Code.lab.summary = by_LA_Code.lab %>% summarise(
+  m.lab = mean(EFFECTSIZE1), 
+  sd.lab = sd(EFFECTSIZE1),
+  se.lab = sd(EFFECTSIZE1/sqrt(n())),
+  lower.lab = m.lab - se.lab, 
+  upper.lab = m.lab + se.lab)
+
+ggplot(by_LA_Code.lab.summary, aes(LA_Code, m.lab)) + geom_point(size = 3) + geom_errorbar(aes(ymin = lower.lab, ymax= upper.lab), width = 0.1) + xlab("LA_Code") + ylab("Mean Effect Size") + ggtitle("Lab") + ylim(-1,1.5) + geom_hline(yintercept=0, linetype="dashed")
+
+```
+
+###Weighted Mean Effect Size 
+##Fig 2 
+```{r}
+#Full Data 
+library(stats)
+library(ggplot2)
+by_LA_Code.summary.fds.w = by_LA_Code.fds %>% summarise(
+  wm.fds = weighted.mean(EFFECTSIZE1),
+  sd.fds = sd(EFFECTSIZE1),
+  se.fds = sd(EFFECTSIZE1/sqrt(n())),
+  lower.fds.w = wm.fds - se.fds,
+  upper.fds.w = wm.fds + se.fds)
+
+#Full data set graph
+ggplot(by_LA_Code.summary.fds.w, aes(LA_Code, wm.fds)) + geom_point(size = 3) + geom_errorbar(aes(ymin = lower.fds.w, ymax= upper.fds.w), width = 0.1) + xlab("LA_Code") + ylab("Weighted Mean Effect Size") + ggtitle("Full Data Set") + ylim(-1,1.5) + geom_hline(yintercept=0, linetype="dashed") 
+#Single Innocula 
+
+by_LA_Code.single.summary.w = by_LA_Code.single %>% summarise(
+  wm.single = mean(EFFECTSIZE1),
+  sd.single = sd(EFFECTSIZE1), 
+  se.single = sd(EFFECTSIZE1/sqrt(n())),
+  lower.single.w = wm.single - se.single, 
+  upper.single.w = wm.single + se.single)
+
+ggplot(by_LA_Code.single.summary.w, aes(LA_Code, wm.single)) + geom_point(size = 3) + geom_errorbar(aes(ymin = lower.single.w, ymax= upper.single.w), width = 0.1) + xlab("LA_Code") + ylab("Weighted Mean Effect Size") + ggtitle("Single Innocula") + ylim(-1,1.5) + geom_hline(yintercept=0, linetype="dashed")
+
+#Lab Studies 
+by_LA_Code.lab.summary.w = by_LA_Code.lab %>% summarise(
+ wm.lab = mean(EFFECTSIZE1), 
+  sd.lab = sd(EFFECTSIZE1),
+  se.lab = sd(EFFECTSIZE1/sqrt(n())),
+  lower.lab.w = wm.lab - se.lab, 
+  upper.lab.w = wm.lab + se.lab)
+
+ggplot(by_LA_Code.lab.summary.w, aes(LA_Code, wm.lab)) + geom_point(size = 3) + geom_errorbar(aes(ymin = lower.lab.w, ymax= upper.lab.w), width = 0.1) + xlab("LA_Code") + ylab("Weighted Mean Effect Size") + ggtitle("Lab") + ylim(-1,1.5) + geom_hline(yintercept=0, linetype="dashed")
+```
+
+
