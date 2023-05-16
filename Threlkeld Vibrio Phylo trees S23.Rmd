@@ -1,0 +1,384 @@
+---
+title: "Threlkeld Vibrio Phylogenetic Trees S23"
+author: "Helen Threlkeld"
+date: '2023-04-26'
+output: word_document
+---
+Please go to the end of ths file to see a list of references to be used when publishing a paper using ggtree, etc. 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+In this first chunk I uploaded a table that Zymo gave us in the folder of data from the 16S Long read product. This table tells us the relative abundance of each sequence that they found in their sequencing of our samples.  
+```{r}
+#loading data 
+setwd("/Users/Helen/Library/CloudStorage/OneDrive-LawrenceUniversity/Threlkeld Vibrio Project/Phylogenetic Trees Code and Products")
+seq_relative_abun_reorder <- read_csv("seq.relative.abun.reorder.csv")
+View(seq_relative_abun_reorder)
+head(abd)
+
+#loading libraries
+library(dplyr)
+library(BiocManager)
+library(RSpectra)
+library(mixOmics)
+library(ggplot2)
+library(lattice)
+library(MASS)
+
+#seperating each sample from the table into a separate object for each. 
+#1f and 2b are not considered here because they are non-axenic cultures and both of those samples have several sequences that are near-dominant in the culture. 
+#3c
+c = filter(abd, sample_id == "3c")
+#3e
+e = filter(abd, sample_id == "3e")
+#3h
+h = filter(abd, sample_id == "3h")
+#A1
+A = filter(abd, sample_id == "A1")
+#A2
+AA = filter(abd, sample_id == "A2")
+#A5
+Afive = filter(abd, sample_id == "A5")
+#D4
+D = filter(abd, sample_id == "D4")
+#D12
+Dtw = filter(abd, sample_id == "D12")
+
+
+#selecting non-0 values (or removing 0-values from the table). To make a complete table, they account for every sequence found in every sample, even when a particular sample doesn't have that sequence (thus yielding a lot of 0 values tied to every sample).
+c <- c %>%  select_if(~!all(is.na(.) | . == 0))
+c.n <- subset(c, select = -c(sample_id))
+e <- e %>%  select_if(~!all(is.na(.) | . == 0))
+e.n <- subset(e, select = -c(sample_id))
+h <- h %>%  select_if(~!all(is.na(.) | . == 0))
+h.n <- subset(h, select = -c(sample_id))
+A <- A %>%  select_if(~!all(is.na(.) | . == 0))
+A.n <- subset(A, select = -c(sample_id))
+AA <- AA %>%  select_if(~!all(is.na(.) | . == 0))
+AA.n <- subset(AA, select = -c(sample_id))
+Afive <- Afive %>%  select_if(~!all(is.na(.) | . == 0))
+Afive.n <- subset(AA, select = -c(sample_id))
+D <- D %>%  select_if(~!all(is.na(.) | . == 0))
+D.n <- subset(D, select = -c(sample_id))
+Dtw <- Dtw %>%  select_if(~!all(is.na(.) | . == 0))
+Dtw.n <- subset(Dtw, select = -c(sample_id))
+
+#finding the sequence that is dominant in each sample
+c.m <- colnames(c.n)[max.col(c.n, ties.method = "first")] 
+e.m <- colnames(e.n)[max.col(e.n, ties.method = "first")] 
+h.m <-colnames(h.n)[max.col(h.n, ties.method = "first")] 
+A.m <-colnames(A.n)[max.col(A.n, ties.method = "first")] 
+AA.m <-colnames(AA.n)[max.col(AA.n, ties.method = "first")] 
+Afive.m <- colnames(Afive.n)[max.col(Afive.n, ties.method = "first")] 
+D.m <-colnames(D.n)[max.col(D.n, ties.method = "first")] 
+Dtw.m <-colnames(Dtw.n)[max.col(Dtw.n, ties.method = "first")] 
+
+#creating a table of the data 
+seq <- c(c.m, e.m, h.m, A.m, AA.m, Afive.m, D.m, Dtw.m)
+samp <- c("3c", "3e", "3h", "A1", "A2", "A5", "D4", "D12")
+seqs <- cbind(samp, seq)
+seqs
+
+```
+Creating phylogenetic trees 
+Packages and data
+```{r}
+#packages 
+# if (!require("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# BiocManager::install("ggtree")
+# BiocManager::install("Biobase")
+library(seqinr)
+library(ape)
+library(phytools)
+library(phylogram)
+library(maps)
+library(ggrepel)
+library(boot)
+library(ggtree)
+#https://yulab-smu.top/treedata-book/chapter4.html
+#I used the above link as a reference for learning how to use ggtree
+library(treeio)
+library(ggplot2)
+library(wesanderson)
+library(Biobase)
+library(dplyr)
+library(phangorn)
+library(tidytree)
+#I am not sure if I actually used all of these in my final product but I don't want to accidentally delete the ones I do need. 
+
+#load data 
+#16S Long read community sequencing
+fast <- read.dna("zymo 16SL vibrio.fasta", format = "fasta")
+#RecA forward sequences that were from samples that were also included in the 16S long read sequences 
+recas <- read.dna("Reca.16s.f.fasta", format = 'fasta')
+#RecA forward and reverse sequences to test tree construction
+recA <- read.dna("vibrio recA 5.23 sequences.fasta", format = "fasta")
+#RecA forward sequences 
+recA.f <- read.dna("recA.forward.fasta", format = "fasta")
+
+#color palette
+Z <- wes_palette("Zissou1")
+print(Z)
+head(Z)
+```
+16S Long read tree
+```{r}
+#generating a phylogenetic tree of the 16S community sequencing 
+#creating a dna object
+fast <- read.dna("zymo 16SL vibrio.fasta", format = "fasta")
+head(fast)
+#  generating a tree 
+
+# plot(treenn)
+# #a really weird vertical tree 
+# Step 1: Distance Matrix 
+dist.matrix <- dist.dna(fast)
+print(fast)
+
+# Step 2: Generating a tree using various methods
+#  neighbor-joining method -> nj()
+treenj <- nj(dist.matrix)
+# name tree <- nj(name of distance matrix)
+plot(treenj)
+#I like this one better than the dendogram because of the extra node that it has. 
+
+#Step 3: Creating tree in ggtree package to make it easier to edit visual aspects of the tree 
+ggs <- ggtree(treenj, layout = "slanted", colour = "black")+ geom_tiplab(size=3) + xlim_tree(0.5)
+ggs
+# name of tree <- ggtree(dist.matrix.name, layout = "layout choice", colour = "branch colour") + geom_tiplab() + xlim_tree()
+#"colour" spelling with the "u" is essential. 
+#geom_tiplab()
+##to add labels to the branch tips 
+#xlim_tree(#)
+#changes the lengths of the tree branches so that all of the labels can fit
+##for rectangle and roundrect, the number should be 10-15, for circular it should be ~30, and for slanted it should be ~100
+
+
+#Step 4: Changing the color of the label on each tree to indicate the country of origin
+#creating lists of country of origin
+s <- data.frame(node=1:Nnode2(treenj), colour = 'black')
+#name <-data.frame(node=starting node:Nnode2(name of tree), colour = 'branch colour')
+#I would not change the (node=1:Nnode2) because it changes what node the list starts on (node=1) and (Nnode2) is part of the function. 
+#If you don't include the (colour='black') the branch colour will default to the color of the label but I found that to be more difficult to decipher. 
+#all the samples from Curacao
+s[c(2,1), 2] <- "#78B7C5"
+#no samples from Bonaire included in the 16SL Zymo beta test
+#all the samples Grand Cayman   
+s[c(3,4,6,5), 2] <- "#F21A00" 
+#The numbers in these lists are the numbers that Rstudio/ggtree assigns to each node when it creates the tree. To find these numbers add ( + ("geom_label(aes(label=node))")) to the line of code, create the lists, and then delete the added code because the numbers are really large. 
+#colors are from the wes_anderson() color palette package available on git Hub. The palette I used is called "Zissou1" based on the character from the Wes Anderson movie Life Aquatic. I loaded it in the packages chunk.
+
+#Step 4: Using ggtree's (%<+%) to integrate data into the tree to change the color of the tip label based on country of origin. 
+ggs2 <- ggs %<+% s + aes(colour=I(colour)) + labs(title=bquote(~bold("b"))) + scale_colour_manual(labels = c("Curaçao", "Grand Cayman"), na.translate = F, name="Country Origin", values=c("#78B7C5","#F21A00", "#EBCC2A" )) + geom_tippoint(aes(subset = node == 2, x = x - branch.length*0.25, y = y+0.35), size = 2, colour = '#3B9AB2', shape = 19) + guides(color = guide_legend(override.aes = list(size = 5))) 
+ggs2
+#the asterisk indicates samples that were also sequenced using recA 
+#the blue circles indicate samples that came from water samples
+
+#exporting tree as a high quality .png file
+ggsave("16SLphylo_tree.png", plot = ggs2, dpi = 500, width =  5.33, height = 3.23)
+#ggsave("name of file", plot = plot.to.save, dpi = # dots per inch, width = inches, height = inches)
+
+```
+RecA tree with the same samples that were used in the 16S sequencing 
+```{r}
+#select the right sequences 
+recas <- read.dna("Reca.16s.f.fasta", format = 'fasta')
+head(recas)
+#dist matrix
+drecas<- dist.ml(recas)
+drecas
+#tree
+treedr <- nj(drecas)
+plot(treedr)
+options(ignore.negative.edge=TRUE)
+#Creating tree in ggtree package to make it better
+ggr <- ggtree(treedr, layout = "slanted", colour = "black")+ geom_tiplab(size=3) + xlim_tree(15)  
+ggr
+rs <- data.frame(node=1:Nnode2(treedr), colour = 'black')
+#all the samples from Curacao
+rs[c(3,4), 2] <- "#78B7C5"
+#no sampples from Bonaire included in the 16s Zymo beta test
+#all the samples Grand Cayman   
+rs[c(2,1), 2] <- "#F21A00" 
+ggs2 <- ggr %<+% rs + aes(colour=I(colour)) + labs(title=bquote(~bold("c"))) +
+    scale_colour_manual(labels = c("Curaçao", "Grand Cayman"), na.translate = F, name="Country Origin",
+                        values=c("#78B7C5", "#F21A00", "#EBCC2A" )) + guides(color = guide_legend(override.aes = list(size = 5))) + geom_tippoint(aes(subset = node == 4, x = x - branch.length*0.25, y = y+0.3), size = 2, colour = '#3B9AB2', shape = 19)
+ggs2
+#exporting tree as a high quality .png file
+ggsave("16S and RecA phylo_tree.png", plot = ggs2, dpi = 500, width =  5.33, height = 3.23)
+```
+RecA tree from all three islands 
+RecA gene tree using the neighbor joining bethod nj(). It barely worked and created a weird vertical tree
+```{r}
+recA <- read.dna("vibrio recA 5.23 sequences.fasta", format = "fasta")
+
+print(recA)
+
+#dist matrix
+dist.recA <- dist.dna(recA)
+
+# Generate a tree using neighbor-joining method 
+tree.r <- njs(dist.recA)
+#used njs() because there was an error that said "missing values are not allowed in the distance matrix" 
+tree_ladderized <- ladderize(tree.r)
+plot(tree_ladderized, cex = 0.8)
+
+tree.r$edge.length <- rep(1.5, length(tree.r$edge.length))
+plot(tree.r, type = "phylogram")
+#there are a lot of labels and they're all really close together
+ 
+
+```
+RecA gene tree using ggtree 
+RecA tree using forward and reverse primers to test the tree 
+```{r}
+#creating a tree from all of the sequences (forward and back) to test methods 
+#dist matrix
+dist.recA <- dist.dna(recA)
+#convert distance matrix to a tree object using neighborjoing 
+tree <- njs(dist.recA)
+print(tree)
+
+
+ggtree(tree, layout = "roundrect") + geom_tiplab(size=3) + xlim_tree(15) 
+```
+RecA tree using only the forward sequences because the forward sequnces had higher %identification and Query covers using Megablast of the NCBI database (5/4/23)
+```{r}
+#load dna file
+recA.f <- read.dna("recA.forward.fasta", format = "fasta")
+#dist matrix 
+dist.f <- dist.ml(recA.f)
+#dist.dna() function did not work with njs() b/c of insufficient data to construct a tree so use dist.ml() which creates the maximum probability distance matrix
+
+#generate tree
+treed <- njs(dist.f)
+
+#Run line below when you get the error "the tree contained negative edge lengths..." and then try the tree again 
+options(ignore.negative.edge = FALSE)
+# convert the tree to a ggtree object
+gft <- ggtree(treed, layout = "slanted", colour = "black")+ geom_tiplab(size=3) + xlim_tree(13)
+gft
+
+# Changing the color of the label based on the country of origin
+d <- data.frame(node=1:Nnode2(treed), colour = 'black')
+#all the samples from Curacao
+d[c(13,4,3,14,10,11,9,8,12), 2] <- "#78B7C5"
+#alll the samples from Bonaire
+ d[c(2,1), 2] <- "#E1AF00"
+#all the samples Grand Cayman   
+ d[c(7,6,5), 2] <- "#F21A00"
+
+
+ #using ggtree %<+% to integrate data into the tree
+g2 <- gft %<+% d + aes(colour=I(colour)) +labs(title=bquote(~bold("a"))) +  theme(legend.position="right") + scale_colour_manual(labels = c("Curaçao", "Bonaire", "Grand Cayman"), na.translate = F, name="Country Origin", values=c("#78B7C5","#E1AF00", "#F21A00", "black")) + guides(color = guide_legend(override.aes = list(size = 5))) + geom_tippoint(aes(subset = node == 4, x = x - branch.length*0.25, y = y+0.2), size = 2, colour = '#3B9AB2', shape = 19) + geom_tippoint(aes(subset = node == 13, x = x - branch.length*0.25, , y = y-0.12), size = 2, colour = '#3B9AB2', shape = 19) + geom_tippoint(aes(subset = node == 14, x = x - branch.length*0.25, y = y+0.35), size = 2, colour = '#3B9AB2', shape = 19)
+g2
+
+#exporting tree as a high quality .png file
+ggsave("RecAf phylo_tree.png", plot = g2, dpi = 500, width =  5.33, height = 3.23)
+#ggsave("name of file", plot = plot.to.save, dpi = # dots per inch, width = inches, height = inches)
+#use to save high quality images of graphs
+#name of final tree <- name of tree created above %<+% list + aes(colour=I(colour)) + labs(title = "title you want to give your tree")
+#the aes(colour=I(colour)) is a necessary code step and without it there is no color. the spelling of colour, with the u, is specific and necessary
+
+#layout options: “rectangular”, “slanted”, “fan”, “circular”, “inward_circular”, “radial”, “unrooted”, “equal_angle”, “daylight”, “dendrogram”, “ape”, “ellipse”, “roundrect”
+# %<+% <- integrates infomration to the tree object. 
+#see more: https://oup.silverchair-cdn.com/oup/backfile/Content_public/Journal/mbe/35/12/10.1093_molbev_msy194/3/msy194_supp.pdf?Expires=1686263443&Signature=lCGRfNaFJ0fdUarm59FT2OJQC7qRK03M3Qs6ppRoUwMh-HtxbC6uzdnB42G9HNowNkiGzEj2raHcoOQWKHO4fpGSLI4rznF5mLDvxsvysD0U6wf8a8AXTw8UZBTHn3uq6tF8nN7jHlyfpQjUaM8uItudbZ5W0Jh~ksKPshcJ5JTA5La4UQIvnWw6P-~6Uw9EuSVpAxVBtRfwwy6l8FP3CtmaDGZNyeKyIaqRIuClirmm8xq4CiIf23~CG7wQW7eBHaUJWvDr5fiBTV1JpLN~hTTBn0FONCNryBoqPmte1VtqWBjLSvSWRJNgV7tRg1fHiHVqBJFwGKG3iKD41LBJ-Q__&Key-Pair-Id=APKAIE5G5CRDK6RD3PGA
+
+
+```
+Messing around with trying to develop a more elegant method of sorting the sequences into country of origins 
+```{r}
+# #trying to create country codes by using a custom function and then trying to use these country codes to change the color of the phylogenetic tree.
+# #this didn't work as intended because of the structure of DNA data and trying to manipulate a DNAbin object but I'm leaving it here just incase someone finds it useful. To try to get around the problems from a DNAbin object I created by DNA files into a csv ("recA.xs.csv"). This worked with the function and I was able to associate a country code to every sequence but I was able to coerce the dataframe into a DNAbin file so that I could create a phylogenetic tree afterwards. 
+# 
+# recA.xs <- read.csv("recA.xs.csv")
+# #countries = Bonaire = 3, Curacao = 2 , Grand Cayman = 1
+# #creating my own function to associate each genetic sequence with country of origin
+# recA.m <- as.matrix(recA)
+# print(recA.m)
+# head(recA.xs)
+# # label <- as.character(recA$label)
+# for(
+#   item in recA.xs
+# )
+# { print(item)
+#    for( i in item){ print(country(i))}
+# }
+# 
+# country <- function(label) {
+#   sapply( label, function(label){
+#   if(
+#     startsWith(label, "BN")
+#   )
+#     return(3)
+#   firstchar = substr(label, 1, 1)
+#   if(
+#     grepl("^(A|D).*", label)
+#   )
+#     return(1)
+#   return(2)
+#   }
+#   )
+# }
+# 
+# countrycode <- c(recA.xs$label)
+# cc <- country(countrycode)
+# print(cc)
+# recA.xs <- cbind(cc, recA.xs)
+# # recA.m <- as.matrix(recA.xs)
+# # recA.d <- as.DNAbin(recA.m)
+# # head(recA.m)
+# 
+# #ggtree(recA.xs, layout = "rectangular", colour = "#78B7C5") + geom_tiplab(size=3) + xlim_tree(15) 
+# k <-ggtree(recA.xs)
+# #resulted in this error: 
+# #Caused by error:
+# #! object 'node' not found
+```
+
+References for publishing 
+
+**If you use the ggtree package suite in published research, please cite the appropriate paper(s):
+
+Guangchuang Yu, David Smith, Huachen Zhu, Yi Guan, Tommy Tsan-Yuk Lam. ggtree: an R package for visualization and
+annotation of phylogenetic trees with their covariates and other associated data. Methods in Ecology and Evolution.
+2017, 8(1):28-36. doi:10.1111/2041-210X.12628
+
+Guangchuang Yu.  Data Integration, Manipulation and Visualization of Phylogenetic Trees (1st edition). Chapman and
+Hall/CRC. 2022, doi:10.1201/9781003279242
+
+Guangchuang Yu, Tommy Tsan-Yuk Lam, Huachen Zhu, Yi Guan. Two methods for mapping and visualizing associated data on
+phylogeny using ggtree. Molecular Biology and Evolution. 2018, 35(12):3041-3043. doi:10.1093/molbev/msy194 
+
+
+**treeio v1.23.1 For help: https://yulab-smu.top/treedata-book/
+
+If you use the ggtree package suite in published research, please cite the appropriate paper(s):
+
+LG Wang, TTY Lam, S Xu, Z Dai, L Zhou, T Feng, P Guo, CW Dunn, BR Jones, T Bradley, H Zhu, Y Guan, Y Jiang, G Yu.
+treeio: an R package for phylogenetic tree input and output with richly annotated and associated data. Molecular Biology
+and Evolution. 2020, 37(2):599-603. doi: 10.1093/molbev/msz240
+
+Shuangbin Xu, Lin Li, Xiao Luo, Meijun Chen, Wenli Tang, Li Zhan, Zehan Dai, Tommy T. Lam, Yi Guan, Guangchuang Yu.
+Ggtree: A serialized data object for visualization of a phylogenetic tree and annotation data. iMeta 2022, 1(4):e56.
+doi:10.1002/imt2.56
+
+Guangchuang Yu. Using ggtree to visualize data on tree-like structures. Current Protocols in Bioinformatics. 2020,
+69:e96. doi:10.1002/cpbi.96 
+
+I used this article to figure out how to change the color of the tip labels of the phlogenetic tree.
+**Guangchuang Yu, Tommy Tsan-Yuk Lam, Huachen Zhu, Yi Guan, Two Methods for Mapping and Visualizing Associated Data on Phylogeny Using Ggtree, Molecular Biology and Evolution, Volume 35, Issue 12, December 2018, Pages 3041–3043, https://doi.org/10.1093/molbev/msy194
+
+**I especially used: 
+Supplemental File of
+"Two methods for mapping and visualizing associated data on phylogeny using ggtree
+Guangchuang Yu, Tommy Tsan-Yuk Lam, Huachen Zhu, Yi Guan" 
+https://oup.silverchair-cdn.com/oup/backfile/Content_public/Journal/mbe/35/12/10.1093_molbev_msy194/3/msy194_supp.pdf?Expires=1686263443&Signature=lCGRfNaFJ0fdUarm59FT2OJQC7qRK03M3Qs6ppRoUwMh-HtxbC6uzdnB42G9HNowNkiGzEj2raHcoOQWKHO4fpGSLI4rznF5mLDvxsvysD0U6wf8a8AXTw8UZBTHn3uq6tF8nN7jHlyfpQjUaM8uItudbZ5W0Jh~ksKPshcJ5JTA5La4UQIvnWw6P-~6Uw9EuSVpAxVBtRfwwy6l8FP3CtmaDGZNyeKyIaqRIuClirmm8xq4CiIf23~CG7wQW7eBHaUJWvDr5fiBTV1JpLN~hTTBn0FONCNryBoqPmte1VtqWBjLSvSWRJNgV7tRg1fHiHVqBJFwGKG3iKD41LBJ-Q__&Key-Pair-Id=APKAIE5G5CRDK6RD3PGA
+
+
+I used this text book to figure out how to use the ggtree package. 
+https://yulab-smu.top/treedata-book/index.html
+I especially used Chapter 4. 
+Guangchuang, Y. Data Ingegration, Manipulation and Visualization of Phylogenetic Trees. (Chapman & Hall/CRC, 2022).
+
